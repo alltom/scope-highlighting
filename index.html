@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Scope Highlighter Experiment</title>
+		<link rel="stylesheet" href="codemirror-3.14/lib/codemirror.css">
+		<link rel="stylesheet" href="codemirror-3.14/doc/docs.css">
+
+		<style type="text/css">
+			.CodeMirror { border-top: 1px solid black; border-bottom: 1px solid black; }
+			.block { background: #79f8b5; }
+			.block-parent { background: #dafdea; }
+		</style>
+	</head>
+	<body>
+		<h1>Scope Highlighter Experiment</h1>
+
+<form><textarea id="code" name="code">var cache = {}; // digest -&gt; string
+
+function mergeInto(options, defaultOptions) {
+	for (var key in options) {
+		if (options[key] !== undefined) {
+			defaultOptions[key] = options[key];
+		}
+	}
+	return defaultOptions;
+}
+
+function instrument(src, fondueOptions) {
+	var md5 = crypto.createHash("md5");
+	md5.update(JSON.stringify(arguments));
+	var digest = md5.digest("hex");
+	if (digest in cache) {
+		return cache[digest];
+	} else {
+		return cache[digest] = fondue.instrument(src, fondueOptions);
+	}
+}</textarea></form>
+
+<script src="codemirror-3.14/lib/codemirror.js"></script>
+<script src="codemirror-3.14/mode/javascript/javascript.js"></script>
+<script src="falafel.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.js"></script>
+<script>
+var editor = CodeMirror.fromTextArea(document.getElementById("code"), { lineNumbers: true });
+var blocks = [];
+falafel(editor.getValue(), { loc: true }, function (node) {
+	if (node.type === "BlockStatement") {
+		var block = {
+			range: { start: node.loc.start, end: node.loc.end },
+			parentRange: { start: node.parent.loc.start, end: node.parent.loc.end }
+		};
+		blocks.push(block);
+	}
+});
+blocks.sort(function (a, b) {
+	return -comparePositions(a.range.start, b.range.start);
+});
+
+var parentMark1, parentMark2, mark;
+function foo(pos) {
+	if (parentMark1) {
+		parentMark1.clear();
+		parentMark1 = undefined;
+	}
+	if (parentMark2) {
+		parentMark2.clear();
+		parentMark2 = undefined;
+	}
+	if (mark) {
+		mark.clear();
+		mark = undefined;
+	}
+	for (var i = 0; i < blocks.length; i++) {
+		var block = blocks[i];
+		if (contains(block.range.start, block.range.end, pos)) {
+			mark = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
+			parentMark1 = editor.markText(e2cm(block.parentRange.start), e2cm(block.range.start), { className: "block-parent" });
+			parentMark2 = editor.markText(e2cm(block.range.end), e2cm(block.parentRange.end), { className: "block-parent" });
+			break;
+		}
+	}
+}
+editor.on("cursorActivity", function () {
+	foo(cm2e(editor.getCursor()));
+});
+$(editor.getWrapperElement()).on("mousemove", function (e) {
+	foo(cm2e(editor.coordsChar({ left: e.pageX, top: e.pageY })));
+});
+
+function cm2e(pos) {
+	return { line: pos.line + 1, column: pos.ch };
+}
+function e2cm(pos) {
+	return { line: pos.line - 1, ch: pos.column };
+}
+function comparePositions(a, b) {
+	if (a.line !== b.line) {
+		return a.line < b.line ? -1 : 1;
+	}
+	if (a.column !== b.column) {
+		return a.column < b.column ? -1 : 1;
+	}
+	return 0;
+}
+function contains(start, end, pos) {
+	var startsBefore = comparePositions(start, pos) <= 0;
+	var endsAfter    = comparePositions(end,   pos) >= 0;
+	return startsBefore && endsAfter;
+}
+</script>
+
+	</body>
+</html>

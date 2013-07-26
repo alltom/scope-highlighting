@@ -1,0 +1,1 @@
+window.falafel = require("falafel");
