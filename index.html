@@ -8,7 +8,7 @@
 
 		<style type="text/css">
 			.CodeMirror { border-top: 1px solid black; border-bottom: 1px solid black; }
-			.block { background: #79f8b5; }
+			.block { background: #aafacf; }
 			.block-parent { background: #dafdea; }
 		</style>
 	</head>
@@ -48,9 +48,22 @@ falafel(editor.getValue(), { loc: true }, function (node) {
 	if (node.type === "BlockStatement") {
 		var block = {
 			range: { start: node.loc.start, end: node.loc.end },
-			parentRange: { start: node.parent.loc.start, end: node.parent.loc.end }
+			isBlock: true,
 		};
+		var parent;
+		if (node.parent.myBlock) {
+			parent = node.parent.myBlock;
+		} else {
+			node.parent.myBlock = parent = {
+				range: { start: node.parent.loc.start, end: node.parent.loc.end },
+				isBlock: false,
+				blocks: [],
+			};
+		}
+		block.parent = parent;
+		parent.blocks.push(block);
 		blocks.push(block);
+		blocks.push(parent);
 	}
 });
 blocks.sort(function (a, b) {
@@ -74,18 +87,27 @@ function foo(pos) {
 	for (var i = 0; i < blocks.length; i++) {
 		var block = blocks[i];
 		if (contains(block.range.start, block.range.end, pos)) {
-			mark = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
-			parentMark1 = editor.markText(e2cm(block.parentRange.start), e2cm(block.range.start), { className: "block-parent" });
-			parentMark2 = editor.markText(e2cm(block.range.end), e2cm(block.parentRange.end), { className: "block-parent" });
+			if (block.isBlock) {
+				mark = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
+				parentMark1 = editor.markText(e2cm(block.parent.range.start), e2cm(block.range.start), { className: "block-parent" });
+				parentMark2 = editor.markText(e2cm(block.range.end), e2cm(block.parent.range.end), { className: "block-parent" });
+			} else {
+				var parent = block;
+				var block = parent.blocks.filter(function (block) { return comparePositions(pos, block.range.start) <= 0 })[0];
+				if (block) {
+					mark = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
+				}
+				parentMark1 = editor.markText(e2cm(block.parent.range.start), e2cm(block.range.start), { className: "block-parent" });
+				parentMark2 = editor.markText(e2cm(block.range.end), e2cm(block.parent.range.end), { className: "block-parent" });
+			}
 			break;
+		// } else if (contains(block.parentRange.start, block.parentRange.end, pos)) {
+		// 	break;
 		}
 	}
 }
 editor.on("cursorActivity", function () {
 	foo(cm2e(editor.getCursor()));
-});
-$(editor.getWrapperElement()).on("mousemove", function (e) {
-	foo(cm2e(editor.coordsChar({ left: e.pageX, top: e.pageY })));
 });
 
 function cm2e(pos) {
