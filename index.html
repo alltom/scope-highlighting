@@ -44,31 +44,39 @@ function instrument(src, fondueOptions) {
 <script>
 var editor = CodeMirror.fromTextArea(document.getElementById("code"), { lineNumbers: true });
 var blocks = [];
-falafel(editor.getValue(), { loc: true }, function (node) {
-	if (node.type === "BlockStatement") {
-		var block = {
-			range: { start: node.loc.start, end: node.loc.end },
-			isBlock: true,
-		};
-		var parent;
-		if (node.parent.myBlock) {
-			parent = node.parent.myBlock;
-		} else {
-			node.parent.myBlock = parent = {
-				range: { start: node.parent.loc.start, end: node.parent.loc.end },
-				isBlock: false,
-				blocks: [],
-			};
-		}
-		block.parent = parent;
-		parent.blocks.push(block);
-		blocks.push(block);
-		blocks.push(parent);
+
+function calculate() {
+	try {
+		falafel(editor.getValue(), { loc: true }, function (node) {
+			if (node.type === "BlockStatement") {
+				var block = {
+					range: { start: node.loc.start, end: node.loc.end },
+					isBlock: true,
+				};
+				var parent;
+				if (node.parent.myBlock) {
+					parent = node.parent.myBlock;
+				} else {
+					node.parent.myBlock = parent = {
+						range: { start: node.parent.loc.start, end: node.parent.loc.end },
+						isBlock: false,
+						blocks: [],
+					};
+				}
+				block.parent = parent;
+				parent.blocks.push(block);
+				blocks.push(block);
+				blocks.push(parent);
+			}
+		});
+		blocks.sort(function (a, b) {
+			return -comparePositions(a.range.start, b.range.start);
+		});
+	} catch (e) {
+		blocks = [];
 	}
-});
-blocks.sort(function (a, b) {
-	return -comparePositions(a.range.start, b.range.start);
-});
+}
+calculate();
 
 var parentMark1, parentMark2, mark;
 function foo(pos) {
@@ -96,9 +104,11 @@ function foo(pos) {
 				var block = parent.blocks.filter(function (block) { return comparePositions(pos, block.range.start) <= 0 })[0];
 				if (block) {
 					mark = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
+					parentMark1 = editor.markText(e2cm(block.parent.range.start), e2cm(block.range.start), { className: "block-parent" });
+					parentMark2 = editor.markText(e2cm(block.range.end), e2cm(block.parent.range.end), { className: "block-parent" });
+				} else {
+					parentMark1 = editor.markText(e2cm(parent.range.start), e2cm(parent.range.end), { className: "block-parent" });
 				}
-				parentMark1 = editor.markText(e2cm(block.parent.range.start), e2cm(block.range.start), { className: "block-parent" });
-				parentMark2 = editor.markText(e2cm(block.range.end), e2cm(block.parent.range.end), { className: "block-parent" });
 			}
 			break;
 		// } else if (contains(block.parentRange.start, block.parentRange.end, pos)) {
@@ -109,6 +119,7 @@ function foo(pos) {
 editor.on("cursorActivity", function () {
 	foo(cm2e(editor.getCursor()));
 });
+editor.on("change", calculate);
 
 function cm2e(pos) {
 	return { line: pos.line + 1, column: pos.ch };
