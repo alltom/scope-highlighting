@@ -8,7 +8,9 @@
 
 		<style type="text/css">
 			.CodeMirror { border-top: 1px solid black; border-bottom: 1px solid black; }
-			.block { background: #aafacf; }
+			.CodeMirror-gutters { border: 0; }
+			.CodeMirror, .CodeMirror-gutters { background: #aafacf; }
+			.block { background: white; }
 			.block-parent { background: #dafdea; }
 		</style>
 	</head>
@@ -100,19 +102,9 @@ function foo(pos) {
 				parentMark1 = editor.markText(e2cm(block.parent.range.start), e2cm(block.range.start), { className: "block-parent" });
 				parentMark2 = editor.markText(e2cm(block.range.end), e2cm(block.parent.range.end), { className: "block-parent" });
 			} else {
-				var parent = block;
-				var block = parent.blocks.filter(function (block) { return comparePositions(pos, block.range.start) <= 0 })[0];
-				if (block) {
-					mark = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
-					parentMark1 = editor.markText(e2cm(block.parent.range.start), e2cm(block.range.start), { className: "block-parent" });
-					parentMark2 = editor.markText(e2cm(block.range.end), e2cm(block.parent.range.end), { className: "block-parent" });
-				} else {
-					parentMark1 = editor.markText(e2cm(parent.range.start), e2cm(parent.range.end), { className: "block-parent" });
-				}
+				parentMark1 = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
 			}
 			break;
-		// } else if (contains(block.parentRange.start, block.parentRange.end, pos)) {
-		// 	break;
 		}
 	}
 }
