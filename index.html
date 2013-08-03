@@ -42,33 +42,54 @@ function instrument(src, fondueOptions) {
 <script src="codemirror-3.14/lib/codemirror.js"></script>
 <script src="codemirror-3.14/mode/javascript/javascript.js"></script>
 <script src="falafel.js"></script>
-<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.js"></script>
+<!-- <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.js"></script> -->
+<script src="jquery.js"></script>
 <script>
-var editor = CodeMirror.fromTextArea(document.getElementById("code"), { lineNumbers: true });
+var editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+	lineNumbers: true,
+	indentUnit: 4,
+	indentWithTabs: true,
+});
 var blocks = [];
 
 function calculate() {
+	function findFunctionParent(node) {
+		do {
+			node = node.parent;
+		} while (node && !/^Function/.test(node.type));
+		return node;
+	}
 	try {
 		falafel(editor.getValue(), { loc: true }, function (node) {
-			if (node.type === "BlockStatement") {
-				var block = {
-					range: { start: node.loc.start, end: node.loc.end },
-					isBlock: true,
-				};
-				var parent;
-				if (node.parent.myBlock) {
-					parent = node.parent.myBlock;
-				} else {
-					node.parent.myBlock = parent = {
-						range: { start: node.parent.loc.start, end: node.parent.loc.end },
-						isBlock: false,
-						blocks: [],
-					};
-				}
-				block.parent = parent;
-				parent.blocks.push(block);
+			var block = { range: { start: node.loc.start, end: node.loc.end }, node: node };
+
+			if (/^(Block|Expression|Return)Statement|VariableDeclaration$/.test(node.type)) {
+				block.isBlock = true;
 				blocks.push(block);
-				blocks.push(parent);
+
+				if (node.myChildBlocks) {
+					node.myChildBlocks.forEach(function (b) {
+						if (!b.parent) {
+							b.parent = block;
+						}
+					});
+				}
+
+				node.parent.myChildBlocks = (node.parent.myChildBlocks || []).concat(block);
+			} else if (node.myChildBlocks) {
+				block.isBlock = false;
+				blocks.push(block);
+
+				node.myChildBlocks.forEach(function (b) {
+					if (!b.parent) {
+						b.parent = block;
+					}
+				});
+
+				var functionParent = findFunctionParent(node);
+				if (functionParent) {
+					functionParent.myChildBlocks = (functionParent.myChildBlocks || []).concat(block);
+				}
 			}
 		});
 		blocks.sort(function (a, b) {
@@ -97,12 +118,10 @@ function foo(pos) {
 	for (var i = 0; i < blocks.length; i++) {
 		var block = blocks[i];
 		if (contains(block.range.start, block.range.end, pos)) {
-			if (block.isBlock) {
-				mark = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
+			mark = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
+			if (block.parent) {
 				parentMark1 = editor.markText(e2cm(block.parent.range.start), e2cm(block.range.start), { className: "block-parent" });
 				parentMark2 = editor.markText(e2cm(block.range.end), e2cm(block.parent.range.end), { className: "block-parent" });
-			} else {
-				parentMark1 = editor.markText(e2cm(block.range.start), e2cm(block.range.end), { className: "block" });
 			}
 			break;
 		}
